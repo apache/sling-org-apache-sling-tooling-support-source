@@ -41,6 +41,8 @@ import org.osgi.framework.Constants;
 import org.osgi.framework.wiring.BundleRevision;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.http.whiteboard.HttpWhiteboardConstants;
+import org.osgi.service.http.whiteboard.propertytypes.HttpWhiteboardContextSelect;
 import org.osgi.service.http.whiteboard.propertytypes.HttpWhiteboardServletPattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +52,8 @@ import org.slf4j.LoggerFactory;
  */
 @Component(service = Servlet.class)
 @HttpWhiteboardServletPattern("/system/sling/tooling/sourceReferences.json")
+// choose another servlet context with a higher ranking than the Sling one (https://issues.apache.org/jira/browse/SLING-11677)
+@HttpWhiteboardContextSelect("(" + HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME + "=org.osgi.service.http)")
 public class SourceReferencesServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
@@ -99,7 +103,7 @@ public class SourceReferencesServlet extends HttpServlet {
                 // source references should only be listed with the host bundle
                 continue;
             }
-            Object bundleVersion = bundle.getVersion();
+            String bundleVersion = bundle.getVersion().toString();
 
             w.object();
             w.key(Constants.BUNDLE_SYMBOLICNAME);

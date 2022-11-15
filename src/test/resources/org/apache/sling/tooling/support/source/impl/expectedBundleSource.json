@@ -1,1 +1,1 @@
-[{"Bundle-SymbolicName":null,"Bundle-Version":null,"sourceReferences":[{"__type__":"maven","groupId":"com.example.myGroupId","artifactId":"myArtifactId","version":"1.0.0"}]}]
+[{"Bundle-SymbolicName":null,"Bundle-Version":"1.0.0","sourceReferences":[{"__type__":"maven","groupId":"com.example.myGroupId","artifactId":"myArtifactId","version":"1.0.0"}]}]

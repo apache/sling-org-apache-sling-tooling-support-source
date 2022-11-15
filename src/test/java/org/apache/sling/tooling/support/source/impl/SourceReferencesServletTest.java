@@ -37,6 +37,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Version;
 import org.osgi.framework.wiring.BundleRevision;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,7 @@ class SourceReferencesServletTest {
         Mockito.when(bundle1.adapt(BundleRevision.class)).thenReturn(bundleRevision);
         Dictionary<String, String> dictionary = Mockito.mock(Dictionary.class);
         Mockito.when(bundle1.getHeaders()).thenReturn(dictionary);
+        Mockito.when(bundle1.getVersion()).thenReturn(new Version("1.0.0"));
         BundleContext ctx = Mockito.mock(BundleContext.class);
         URLConnection mockUrlConnection = Mockito.mock(URLConnection.class);
         URLStreamHandler stubUrlHandler = new URLStreamHandler() {
