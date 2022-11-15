@@ -18,6 +18,7 @@ package org.apache.sling.tooling.support.source.impl;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Writer;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,29 +34,27 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.felix.utils.json.JSONWriter;
 import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.wiring.BundleRevision;
-import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.http.whiteboard.propertytypes.HttpWhiteboardServletPattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The <tt>SourceReferencesServlet</tt> infers and outputs source information about bundles running a Sling instance
  */
-@Component(service = Servlet.class,
-    property = {
-            Constants.SERVICE_VENDOR + "=The Apache Software Foundation",
-            "alias=/system/sling/tooling/sourceReferences.json"
-    })
+@Component(service = Servlet.class)
+@HttpWhiteboardServletPattern("/system/sling/tooling/sourceReferences.json")
 public class SourceReferencesServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
 
-    private final Logger log = LoggerFactory.getLogger(getClass());
+    private static final Logger log = LoggerFactory.getLogger(SourceReferencesServlet.class);
 
     private static final String KEY_TYPE = "__type__";
     private static final String KEY_GROUP_ID = "groupId";
@@ -67,10 +66,11 @@ public class SourceReferencesServlet extends HttpServlet {
     private static final String FELIX_FW_GROUP_ID = "org.apache.felix";
     private static final String FELIX_FW_ARTIFACT_ID = "org.apache.felix.framework";
 
-    private ComponentContext ctx;
-    private List<SourceReferenceFinder> finders;
+    private final BundleContext ctx;
+    private final List<SourceReferenceFinder> finders;
 
-    protected void activate(ComponentContext ctx) {
+    @Activate
+    public SourceReferencesServlet(BundleContext ctx) {
         this.ctx = ctx;
 
         finders = new ArrayList<>();
@@ -81,87 +81,87 @@ public class SourceReferencesServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         try {
             response.setContentType("application/json");
-
-            final JSONWriter w = new JSONWriter(response.getWriter());
-            w.array();
-
-            for ( Bundle bundle : ctx.getBundleContext().getBundles() ) {
-
-                // skip bundle if it is a fragment (http://stackoverflow.com/questions/11655295/using-the-osgi-api-how-do-i-find-out-if-a-given-bundle-is-a-fragment)
-                if ((bundle.adapt(BundleRevision.class).getTypes() & BundleRevision.TYPE_FRAGMENT) != 0) {
-                    log.debug("Skip bundle '{}' because it is a fragment", bundle);
-                    // source references should only be listed with the host bundle
-                    continue;
-                }
-                Object bundleVersion = bundle.getHeaders().get(Constants.BUNDLE_VERSION);
-
-                w.object();
-                w.key(Constants.BUNDLE_SYMBOLICNAME);
-                w.value(bundle.getSymbolicName());
-                w.key(Constants.BUNDLE_VERSION);
-                w.value(bundleVersion);
-
-                w.key("sourceReferences");
-                w.array();
-
-                // the system bundle is embedded by the launchpad jar so we need special handling
-                // since the pom.properties file is not located in the bundle
-                if ( bundle.getBundleId() == 0 && bundle.getSymbolicName().equals(FELIX_FW_ARTIFACT_ID) ) {
-                    writeMavenGav(w, FELIX_FW_GROUP_ID, FELIX_FW_ARTIFACT_ID, (String) bundleVersion);
-                }
-
-                // look for pom.properties in the bundle ( the original bundle, fragments )
-                collectMavenSourceReferences(w, bundle);
-
-                // look for pom.properties in jars embedded in the bundle
-                for ( String jar : getEmbeddedJars(bundle)) {
-                    URL entry = bundle.getEntry(jar);
-                    // incorrect or inaccessible entry
-                    if ( entry == null ) {
-                        continue;
-                    }
-                    collectMavenSourceRerefences(w, entry);
-                }
-
-                // query custom finders for source references
-                for ( SourceReferenceFinder finder : finders ) {
-                    try {
-                        for ( SourceReference reference : finder.findSourceReferences(bundle)) {
-                            log.debug("{} found reference {}:{}:{} in {}", new Object[] { finder, reference.getGroupId(), reference.getArtifactId(), reference.getVersion(), bundle});
-                            writeMavenGav(w, reference.getGroupId(), reference.getArtifactId(), reference.getVersion());
-                        }
-                    } catch (SourceReferenceException e) {
-                        log.warn(finder + " execution did not complete normally for " + bundle, e);
-                    }
-                }
-
-                w.endArray();
-                w.endObject();
-            }
-
-            w.endArray();
+            writeBundleSourceJson(response.getWriter(), ctx.getBundles());
         } catch (IOException e) {
             throw new ServletException(e);
         }
     }
 
-    private void collectMavenSourceReferences(JSONWriter w, Bundle bundle) throws IOException {
+    void writeBundleSourceJson(Writer writer, Bundle... bundles) throws IOException {
+        final JSONWriter w = new JSONWriter(writer);
+        w.array();
+
+        for (Bundle bundle : bundles) {
+
+            // skip bundle if it is a fragment (http://stackoverflow.com/questions/11655295/using-the-osgi-api-how-do-i-find-out-if-a-given-bundle-is-a-fragment)
+            if ((bundle.adapt(BundleRevision.class).getTypes() & BundleRevision.TYPE_FRAGMENT) != 0) {
+                log.debug("Skip bundle '{}' because it is a fragment", bundle);
+                // source references should only be listed with the host bundle
+                continue;
+            }
+            Object bundleVersion = bundle.getVersion();
+
+            w.object();
+            w.key(Constants.BUNDLE_SYMBOLICNAME);
+            w.value(bundle.getSymbolicName());
+            w.key(Constants.BUNDLE_VERSION);
+            w.value(bundleVersion);
+
+            w.key("sourceReferences");
+            w.array();
+
+            // the system bundle is embedded by the launchpad jar so we need special handling
+            // since the pom.properties file is not located in the bundle
+            if ( bundle.getBundleId() == Constants.SYSTEM_BUNDLE_ID && FELIX_FW_ARTIFACT_ID.equals(bundle.getSymbolicName()) ) {
+                writeMavenGav(w, FELIX_FW_GROUP_ID, FELIX_FW_ARTIFACT_ID, (String) bundleVersion);
+            }
+
+            // look for pom.properties in the bundle ( the original bundle, fragments )
+            collectMavenSourceReferences(w, bundle);
+
+            // look for pom.properties in jars embedded in the bundle
+            for ( String jar : getEmbeddedJars(bundle)) {
+                URL entry = bundle.getEntry(jar);
+                // incorrect or inaccessible entry
+                if ( entry == null ) {
+                    continue;
+                }
+                collectMavenSourceReferences(w, entry);
+            }
+
+            // query custom finders for source references
+            for ( SourceReferenceFinder finder : finders ) {
+                try {
+                    for ( SourceReference reference : finder.findSourceReferences(bundle)) {
+                        log.debug("{} found reference {}:{}:{} in {}", new Object[] { finder, reference.getGroupId(), reference.getArtifactId(), reference.getVersion(), bundle});
+                        writeMavenGav(w, reference.getGroupId(), reference.getArtifactId(), reference.getVersion());
+                    }
+                } catch (SourceReferenceException e) {
+                    log.warn(finder + " execution did not complete normally for " + bundle, e);
+                }
+            }
+
+            w.endArray();
+            w.endObject();
+        }
+
+        w.endArray();
+    }
+
+    private static void collectMavenSourceReferences(JSONWriter w, Bundle bundle) throws IOException {
 
         Enumeration<?> entries = bundle.findEntries("/META-INF/maven", "pom.properties", true);
 
         while ( entries != null && entries.hasMoreElements()) {
             URL entry = (URL) entries.nextElement();
 
-            InputStream in = entry.openStream();
-            try {
+            try (InputStream in = entry.openStream()) {
                 writeMavenGav(w, in);
-            } finally {
-                IOUtils.closeQuietly(in);
             }
         }
     }
 
-    private void writeMavenGav(JSONWriter w, String groupId, String artifactId, String version) throws IOException {
+    private static void writeMavenGav(JSONWriter w, String groupId, String artifactId, String version) throws IOException {
 
         w.object();
         w.key(KEY_TYPE).value(VALUE_TYPE_MAVEN);
@@ -171,7 +171,7 @@ public class SourceReferencesServlet extends HttpServlet {
         w.endObject();
     }
 
-    private void writeMavenGav(JSONWriter w, InputStream in) throws IOException {
+    private static void writeMavenGav(JSONWriter w, InputStream in) throws IOException {
 
         Properties p = new Properties();
         p.load(in);
@@ -183,18 +183,18 @@ public class SourceReferencesServlet extends HttpServlet {
         w.endObject();
     }
 
-    private List<String> getEmbeddedJars(Bundle bundle) {
+    private static List<String> getEmbeddedJars(Bundle bundle) {
 
-        String classPath = (String) bundle.getHeaders().get(Constants.BUNDLE_CLASSPATH);
-        if ( classPath == null ) {
+        String classPath = bundle.getHeaders().get(Constants.BUNDLE_CLASSPATH);
+        if (classPath == null) {
             return Collections.emptyList();
         }
 
         List<String> embeddedJars = new ArrayList<>();
 
         String[] classPathEntryNames = classPath.split("\\,");
-        for ( String classPathEntry : classPathEntryNames ) {
-            if ( classPathEntry.endsWith(".jar")) {
+        for (String classPathEntry : classPathEntryNames) {
+            if (classPathEntry.endsWith(".jar")) {
                 embeddedJars.add(classPathEntry);
             }
         }
@@ -202,20 +202,17 @@ public class SourceReferencesServlet extends HttpServlet {
         return embeddedJars;
     }
 
-    private void collectMavenSourceRerefences(JSONWriter w, URL entry) throws IOException {
+    private static void collectMavenSourceReferences(JSONWriter w, URL entry) throws IOException {
 
-        InputStream wrappedIn = entry.openStream();
-        try {
-            JarInputStream jarIs = new JarInputStream(wrappedIn);
+        try (InputStream wrappedIn = entry.openStream();
+            JarInputStream jarIs = new JarInputStream(wrappedIn)) {
             JarEntry jarEntry;
-            while ( ( jarEntry = jarIs.getNextJarEntry()) != null ) {
+            while ((jarEntry = jarIs.getNextJarEntry()) != null) {
                 String entryName = jarEntry.getName();
-                if ( entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties")) {
+                if (entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties")) {
                     writeMavenGav(w, jarIs);
                 }
             }
-        } finally {
-            IOUtils.closeQuietly(wrappedIn);
         }
     }
 
