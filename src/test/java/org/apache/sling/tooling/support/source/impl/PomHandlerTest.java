@@ -16,26 +16,27 @@
  */
 package org.apache.sling.tooling.support.source.impl;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.xml.sax.SAXException;
 
-public class PomHandlerTest {
+class PomHandlerTest {
 
     @Test
-    public void parseJettyPom() throws SAXException, IOException, ParserConfigurationException {
+     void parseJettyPom() throws SAXException, IOException, ParserConfigurationException {
         
         PomHandler handler = new PomHandler("9.2.4");
-        
-        SAXParserFactory.newInstance().newSAXParser().parse(getClass().getResourceAsStream("felix-pom.xml"), handler);
-        
+        try (InputStream input = getClass().getResourceAsStream("felix-pom.xml")) {
+            SAXParserFactory.newInstance().newSAXParser().parse(input, handler);
+        }
         List<SourceReference> references = handler.getReferences();
         
         assertEquals(10, references.size());
