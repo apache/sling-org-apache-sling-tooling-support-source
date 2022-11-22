@@ -27,7 +27,7 @@
     </parent>
 
     <artifactId>org.apache.sling.tooling.support.source</artifactId>
-    <version>1.0.5-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
 
     <name>Apache Sling Tooling Support Source</name>
     <description>Outputs source information about bundles running in a Sling instance</description>
@@ -36,7 +36,11 @@
         <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/sling-org-apache-sling-tooling-support-source.git</developerConnection>
         <url>https://gitbox.apache.org/repos/asf?p=sling-org-apache-sling-tooling-support-source.git</url>
     </scm>
-    
+
+    <properties>
+        <project.build.outputTimestamp>2022-07-10T09:19:36Z</project.build.outputTimestamp>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.osgi</groupId>

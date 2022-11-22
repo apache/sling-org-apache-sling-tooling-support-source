@@ -5,3 +5,5 @@
 # Apache Sling Tooling Support Source
 
 This module is part of the [Apache Sling](https://sling.apache.org) project.
+
+This bundle allows to expose source information (in form of Maven coordinates) about all running bundles from an OSGi runtime. It is used from [Sling IDE Tooling](https://sling.apache.org/documentation/development/ide-tooling.html).
